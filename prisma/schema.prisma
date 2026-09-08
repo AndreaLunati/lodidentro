@@ -1,0 +1,227 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. UTENTE E PROFILO
+model User {
+  id           String   @id // Senza uuid se usi l'ID di Clerk
+  phone        String   @unique 
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile      UserProfile?
+  groupMembers GroupMember[]
+  dateVotes    DateVote[]
+  venueVotes   VenueVote[]
+  feedbacks    Feedback[]
+  checkIns     CheckIn[]
+  reportsSent  UserReport[] @relation("Reporter")
+  reportsRecvd UserReport[] @relation("Reported")
+  blocksMade   UserBlock[]  @relation("Blocker")
+  blocksRecvd  UserBlock[]  @relation("Blocked") // <-- AGGIUNGI QUESTA RIGA QUI
+}
+
+model UserProfile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  birthDate    DateTime
+  city         String   @default("Lodi")
+  avatarUrl    String?
+  instagram    String?  // Visibile solo post-evento su consenso
+  showInsta    Boolean  @default(false)
+  interests    String[] // Array di interessi es. ["viaggi", "calcio"]
+}
+
+// 2. CATEGORIE E SPORT
+model ActivityCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique // CENA, APERITIVO, SPORT
+  description String
+  sports      Sport[]
+  groups      Group[]
+}
+
+model Sport {
+  id         String   @id @default(uuid())
+  name       String   // padel, calcetto, ecc.
+  minPlayers Int
+  maxPlayers Int
+  categoryId String
+  category   ActivityCategory @relation(fields: [categoryId], references: [id])
+  groups     Group[]
+}
+
+// 3. SISTEMA DEI GRUPPI E STATI
+enum GroupStatus {
+  COLLECTING_USERS    // Raccolta partecipanti
+  VOTING_VENUE        // Scelta del locale
+  VOTING_DATE         // Scelta della data
+  CONFIRMING_USERS    // Conferma definitiva
+  CONFIRMED           // Evento confermato
+  COMPLETED           // Evento concluso
+  CANCELLED           // Annullato
+}
+
+model Group {
+  id             String           @id @default(uuid())
+  groupNumber    Int              // Es. Cena #14
+  categoryId     String
+  category       ActivityCategory @relation(fields: [categoryId], references: [id])
+  sportId        String?
+  sport          Sport?           @relation(fields: [sportId], references: [id])
+  maxCapacity    Int              @default(8)
+  status         GroupStatus      @default(COLLECTING_USERS)
+  createdAt      DateTime         @default(now())
+  
+  members        GroupMember[]
+  venueVotes     VenueVote[]
+  dateProposals  DateProposal[]
+  event          Event?
+}
+
+model GroupMember {
+  id       String   @id @default(uuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  groupId  String
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([userId, groupId])
+}
+
+// 4. LOCALI E PARTNER
+model Venue {
+  id            String           @id @default(uuid())
+  name          String
+  zone          String           @default("Lodi")
+  priceRange    String           // Es. €€
+  description   String
+  packageInfo   String           // Es. Pacchetto Lodidentro: 25€
+  commissionFee Float            @default(2.50) // Es. 2.50€ per partecipante
+  
+  offers        VenueOffer[]
+  venueVotes    VenueVote[]
+  events        Event[]
+}
+
+model VenueOffer {
+  id          String   @id @default(uuid())
+  venueId     String
+  venue       Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  title       String
+  price       Float
+}
+
+model VenueVote {
+  id        String   @id @default(uuid())
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  venueId   String
+  venue     Venue    @relation(fields: [venueId], references: [id])
+
+  @@unique([userId, groupId]) // 1 voto per utente a gruppo
+}
+
+// 5. DATE E VOTAZIONI DATA
+model DateProposal {
+  id            String      @id @default(uuid())
+  groupId       String
+  group       Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  date          DateTime
+  dateVotes     DateVote[]
+  isChosen      Boolean     @default(false)
+}
+
+model DateVote {
+  id             String       @id @default(uuid())
+  dateProposalId String
+  dateProposal   DateProposal @relation(fields: [dateProposalId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([userId, dateProposalId])
+}
+
+// 6. EVENTI FINALI E CHECK-IN
+model Event {
+  id            String             @id @default(uuid())
+  groupId       String             @unique
+  group         Group              @relation(fields: [groupId], references: [id])
+  venueId       String
+  venue         Venue              @relation(fields: [venueId], references: [id])
+  eventDate     DateTime
+  uniqueCode    String             @unique // Es. LODIDENTRO-C024
+  status        String             @default("PENDING") // PENDING, CONFIRMED, FINISHED
+  
+  participants  EventParticipant[]
+  checkIns      CheckIn[]
+  commissions   Commission?
+}
+
+model EventParticipant {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  confirmed Boolean  @default(false) // Ha confermato la presenza finale?
+}
+
+model CheckIn {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  timestamp DateTime @default(now())
+
+  @@unique([userId, eventId])
+}
+
+model Commission {
+  id                 String   @id @default(uuid())
+  eventId            String   @unique
+  event              Event    @relation(fields: [eventId], references: [id])
+  expectedCount      Int
+  checkedInCount     Int      @default(0)
+  feePerParticipant  Float
+  totalEarned        Float    @default(0.0)
+}
+
+// 7. FEEDBACK E MODERAZIONE
+model Feedback {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int      // 1-5
+  comment   String?  
+  createdAt DateTime @default(now())
+}
+
+model UserBlock {
+  id            String   @id @default(uuid())
+  blockerId     String
+  blocker       User     @relation("Blocker", fields: [blockerId], references: [id])
+  blockedId     String
+  blocked       User     @relation("Blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+model UserReport {
+  id          String   @id @default(uuid())
+  reporterId  String
+  reporter    User     @relation("Reporter", fields: [reporterId], references: [id])
+  reportedId  String
+  reported    User     @relation("Reported", fields: [reportedId], references: [id])
+  reason      String
+  createdAt   DateTime @default(now())
+}

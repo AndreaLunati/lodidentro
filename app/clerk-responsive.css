@@ -1,0 +1,56 @@
+/* Keeps Clerk embedded auth inside the Lodidentro app frame on every viewport. */
+.cl-rootBox,
+.cl-cardBox,
+.cl-card,
+.cl-main,
+.cl-form,
+.cl-formField,
+.cl-formFieldRow,
+.cl-formFieldInput,
+.cl-socialButtonsBlockButton,
+.cl-identityPreview,
+.cl-footer,
+.cl-footerAction {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.cl-rootBox,
+.cl-cardBox,
+.cl-card,
+.cl-main {
+  overflow-x: clip !important;
+}
+
+.cl-cardBox,
+.cl-card {
+  margin-inline: 0 !important;
+}
+
+.cl-formFieldInput,
+.cl-socialButtonsBlockButton,
+.cl-formButtonPrimary {
+  max-width: 100% !important;
+}
+
+.cl-socialButtonsBlockButtonText,
+.cl-identityPreviewText,
+.cl-footerActionText,
+.cl-footerActionLink {
+  min-width: 0 !important;
+  overflow-wrap: anywhere;
+}
+
+/* Clerk sometimes injects a fixed-size modal/card. Never let it create horizontal scroll. */
+[class^="cl-"][style*="width"],
+[class*=" cl-"][style*="width"] {
+  max-width: 100% !important;
+}
+
+@media (max-width: 639px) {
+  .cl-card {
+    border-radius: 0 !important;
+  }
+}
